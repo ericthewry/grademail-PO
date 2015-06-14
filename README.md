@@ -16,4 +16,4 @@ In order to develop GradEmail, you'll want to run a local debugging server, befo
 
     python -m smtpd -n -c DebuggingServer localhost:1025
 
-Then, run the file with the -DEGBUG flag
+Then, run the file with the -DEBUG flag
