@@ -19,16 +19,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-
-# python -m smtpd -n -c DebuggingServer localhost:1025
-# enter the above line at terminal to run debugging server
-DEBUG = 1
-if DEBUG: 
-     PORT = 1025
-     SERVER = 'localhost'
-else: 
-     PORT = 587 
-     SERVER = "smtp.gmail.com:587"
+DEBUG = False
 
 CURRDIR = './Output'
 COMMASPACE = ', '
@@ -61,8 +52,22 @@ Note that options are not optional.
      parser.add_option('-l', '--labnum',
                       type='string', action='store',
                       help="""The two-digit lab number""")
+     parser.add_option('-D', '--DEBUG', action='store_true', 
+                      help= """Enable if you want to debug.""")
 
      opts, args = parser.parse_args()
+
+     # python -m smtpd -n -c DebuggingServer localhost:1025
+     # enter the above line at terminal to run debugging server
+     DEBUG = (opts.DEBUG == True)
+     if DEBUG: 
+          print "DEBUG ENABLED"
+          PORT = 1025
+          SERVER = 'localhost'
+     else: 
+          print "NO DEBUG"
+          PORT = 587 
+          SERVER = "smtp.gmail.com:587"
 
      # check for incomplete arguments
      if not opts.email or not opts.text or not opts.labnum:
