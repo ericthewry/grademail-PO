@@ -8,7 +8,7 @@ In order to run the GradEmail Script, simply enter this into the command line
     
 Where `email` is the email from which you wish to send your emails (currently only works for gmail), `text` is the file from which you wish to pull your canned response, and `labnumber` is the number of the lab.
 
-It will then prompt you for your email password.
+It will then prompt you for your email password. Once you input it, your emails will be sent.
 
 ## Development
 
