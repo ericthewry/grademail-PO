@@ -106,7 +106,7 @@ def sendmail(name, textbody, sender, receiver, server, num):
      msg['To'] = receiver
      msg.preamble = 'Grading email \n'
 
-     bodyfp = open (textbody, 'rb')
+     bodyfp = open(textbody, 'rb')
      text = getBody(bodyfp, num)
      msg.attach(text)
      bodyfp.close()
@@ -205,10 +205,11 @@ def getBody(fd, num):
      nextline = fd.readline()
      content = "";
      while nextline:
-          content += nextline
+          print(type(nextline.decode('utf-8')))
+          content = "%s%s" % (content, nextline.decode('utf-8'))
           nextline = fd.readline()
 
-     content = content.replace('XX', num)
+     # content = content.replace('XX', num)
      text = MIMEText(content, _subtype='plain')
      return text
 
