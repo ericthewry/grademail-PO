@@ -8,6 +8,7 @@ import time
 import mimetypes
 import getpass
 import platform
+import csv
 
 from optparse import OptionParser
 
@@ -26,7 +27,7 @@ CURRDIR = './Output'
 COMMASPACE = ', '
 
 # the prefix and suffix for the code files
-CODE_P = 'Code_'
+CODE_P = 'Grade_'
 CODE_S = '.pdf'
 
 # the prefix and suffix for the code files
@@ -36,13 +37,17 @@ GRADE_S = '.txt'
 #time to sleep between opening files
 SLEEP_TIME = 0.1
 
+# the labnumber
+labnum = ""
+
 def main():
+     fileEmailDict = __parseCSV('47')
      parser = OptionParser("""\
 Send the canned response emails
 
 Usage: ./grademail.py -e [email] -t [text] -l [labnumber]
 
-Note that options are not optional.
+Note that above options are not optional.
 """)
      parser.add_option('-e', '--email',
                       type='string', action='store',
@@ -87,10 +92,15 @@ Note that options are not optional.
           server.starttls()
           server.login(usr, pw)
 
-     for filename in os.listdir(CURRDIR):
-          # if the file is a Code file
-          if isCodeFile(filename):
-               sendmail(getName(filename), opts.text, me, you, server, opts.labnum)
+     for filename in fileEmailDict:
+          rubric = "%s/%s%s" % (CURRDIR, filename, GRADE_S)
+          comments = "%s/%s%s" % (CURRDIR, filename, CODE_S)
+          if os.path.isfile(rubric) and os.path.isfile(comments):
+               print("Try to send mail to %s" % (filename))
+               sendmail(getName(filename), opts.text, me, fileEmailDict[filename], server, opts.labnum)
+               print('Send Exited')
+          else:
+               print("Missing .txt or .pdf file for %s.*" % (filename))
 
      server.quit()
 
@@ -159,6 +169,28 @@ def sendmail(name, textbody, sender, receiver, server, num):
      # send the message
      server.sendmail(sender, [receiver], msg.as_string())
 
+
+def __parseCSV(num):
+     csvfd = open('./Emails.csv', 'r')
+     dictionary = {}
+     with csvfd as emails:
+          reader = csv.DictReader(emails)
+          for row in reader:
+               dictionary[__nameToFile(row['Name'], num)] = row['Email']
+     return dictionary
+
+def __nameToFile(name, num):
+     first = __getFirst(name)
+     last = __getLast(name)
+     return "Grade_Lab%s%s%s" % (num,last,first)
+
+def __getFirst(name):
+     brkIdx = name.index(" ")
+     return name[:brkIdx]
+
+def __getLast(name):
+     brkIdx = -name[::-1].index(" ")
+     return name[brkIdx:]
 
 # a function to open all the grade files
 def openGradeFiles():
