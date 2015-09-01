@@ -7,6 +7,7 @@ import os
 import time
 import mimetypes
 import getpass
+import platform
 
 from optparse import OptionParser
 
@@ -37,7 +38,7 @@ SLEEP_TIME = 0.1
 
 def main():
      parser = OptionParser("""\
-Send the canned response emails 
+Send the canned response emails
 
 Usage: ./grademail.py -e [email] -t [text] -l [labnumber]
 
@@ -52,7 +53,7 @@ Note that options are not optional.
      parser.add_option('-l', '--labnum',
                       type='string', action='store',
                       help="""The two-digit lab number""")
-     parser.add_option('-D', '--DEBUG', action='store_true', 
+     parser.add_option('-D', '--DEBUG', action='store_true',
                       help= """Enable if you want to debug.""")
 
      opts, args = parser.parse_args()
@@ -60,13 +61,13 @@ Note that options are not optional.
      # python -m smtpd -n -c DebuggingServer localhost:1025
      # enter the above line at terminal to run debugging server
      DEBUG = (opts.DEBUG == True)
-     if DEBUG: 
-          print "DEBUG ENABLED"
+     if DEBUG:
+          print("DEBUG ENABLED")
           PORT = 1025
           SERVER = 'localhost'
-     else: 
-          print "NO DEBUG"
-          PORT = 587 
+     else:
+          print("NO DEBUG")
+          PORT = 587
           SERVER = "smtp.gmail.com:587"
 
      # check for incomplete arguments
@@ -76,7 +77,7 @@ Note that options are not optional.
      me = usr = opts.email
      you = "eric.campbell@pomona.edu"
      pw = getpass.getpass('Password for %s:' % usr)
-     
+
      # create connection to the server
      if DEBUG: # localhost
           server = smtplib.SMTP(SERVER,PORT)
@@ -85,7 +86,7 @@ Note that options are not optional.
           server.ehlo()
           server.starttls()
           server.login(usr, pw)
-     
+
      for filename in os.listdir(CURRDIR):
           # if the file is a Code file
           if isCodeFile(filename):
@@ -116,7 +117,7 @@ def sendmail(name, textbody, sender, receiver, server, num):
      codePath  = os.path.join(CURRDIR, codeFile)
      gradePath = os.path.join(CURRDIR, gradeFile)
 
-     # check for errors 
+     # check for errors
      if not os.path.isfile(codePath):
           raise BadPathException(codePath)
      if not os.path.isfile(gradePath):
@@ -157,7 +158,7 @@ def sendmail(name, textbody, sender, receiver, server, num):
 
      # send the message
      server.sendmail(sender, [receiver], msg.as_string())
-     
+
 
 # a function to open all the grade files
 def openGradeFiles():
@@ -167,13 +168,18 @@ def openGradeFiles():
 def openCodeFiles():
      __openFiles(CODE_P)
 
-# private helper function to open up files with 
+# private helper function to open up files with
 # a given prefix.
 def __openFiles(prefix):
      for filename in os.listdir(CURRDIR):
           if re.match(prefix, filename) != None:
                time.sleep(SLEEP_TIME)
-               os.system("open %s/%s " % (CURRDIR,filename));
+               command = ""
+               if platform.system() == "Windows":
+                    command = "start "
+               else:
+                    command = "open "
+               os.system("%s%s/%s " % (command,CURRDIR,filename));
 
 
 # search file for code/grade pairs

@@ -1,0 +1,6 @@
+Your grade for the lab is attached.  Please read through all of the comments 
+and the rubric so that you can understand your score and improve your coding
+skills. If you have any questions, please contact a TA or post on Piazza.
+
+Happy Coding!
+Your CS051 TAs
