@@ -41,7 +41,6 @@ SLEEP_TIME = 0.1
 labnum = ""
 
 def main():
-     fileEmailDict = __parseCSV('47')
      parser = OptionParser("""\
 Send the canned response emails
 
@@ -65,7 +64,7 @@ Note that above options are not optional.
 
      # python -m smtpd -n -c DebuggingServer localhost:1025
      # enter the above line at terminal to run debugging server
-     DEBUG = (opts.DEBUG == True)
+     DEBUG = opts.DEBUG
      if DEBUG:
           print("DEBUG ENABLED")
           PORT = 1025
@@ -79,30 +78,35 @@ Note that above options are not optional.
      if not opts.email or not opts.text or not opts.labnum:
           raise IncompleteArgumentsException();
 
-     me = usr = opts.email
-     you = "eric.campbell@pomona.edu"
+     usr = opts.email
      pw = getpass.getpass('Password for %s:' % usr)
 
      # create connection to the server
+     server = connect(usr, pw)
+     sendEmails(__parseCSV(opts.labnum), opts.text, usr, server, opts.labnum)
+     server.quit()
+
+def sendEmails(mapping, text, sender, server, labnum):
+     for filename in mapping:
+          rubric = "%s/%s%s" % (CURRDIR, filename, GRADE_S)
+          comments = "%s/%s%s" % (CURRDIR, filename, CODE_S)
+          if os.path.isfile(rubric) and os.path.isfile(comments):
+               print("Send mail to %s" % (filename))
+               sendmail(getName(filename), text, sender, mapping[filename], server, labnum)
+          else:
+               print("Missing .txt or .pdf file for %s.*" % (filename))
+
+# create connection to the server
+def connect(usr, pw):
      if DEBUG: # localhost
-          server = smtplib.SMTP(SERVER,PORT)
+          return smtplib.SMTP(SERVER,PORT)
      else: # log in to external mail server
           server = smtplib.SMTP(SERVER)
           server.ehlo()
           server.starttls()
           server.login(usr, pw)
+          return server
 
-     for filename in fileEmailDict:
-          rubric = "%s/%s%s" % (CURRDIR, filename, GRADE_S)
-          comments = "%s/%s%s" % (CURRDIR, filename, CODE_S)
-          if os.path.isfile(rubric) and os.path.isfile(comments):
-               print("Try to send mail to %s" % (filename))
-               sendmail(getName(filename), opts.text, me, fileEmailDict[filename], server, opts.labnum)
-               print('Send Exited')
-          else:
-               print("Missing .txt or .pdf file for %s.*" % (filename))
-
-     server.quit()
 
 def sendmail(name, textbody, sender, receiver, server, num):
      # Open a plain text file for reading. For this example, assume that
