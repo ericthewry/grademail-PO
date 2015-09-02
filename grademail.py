@@ -14,16 +14,9 @@ from optparse import OptionParser
 
 from email import encoders
 from email.message import Message
-from email.mime.audio import MIMEAudio
 from email.mime.base import MIMEBase
-from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-
-debug = False
-
-COMMASPACE = ', '
 
 # the prefix and suffix for the Commented Code
 CODE_P = 'Grade_'
@@ -32,9 +25,6 @@ CODE_S = '.pdf'
 # the prefix and suffix for the Rubric files
 GRADE_P = 'Grade_'
 GRADE_S = '.txt'
-
-#time to sleep between opening files
-SLEEP_TIME = 0.1
 
 def main():
      parser = OptionParser("""\
@@ -69,7 +59,7 @@ Note that above options are not optional.
 
      # create connection to the server
      server = connect(usr, pw, debug)
-     sendEmails(__parseCSV(opts.labnum, curDir), opts.text, usr, server, opts.labnum, curDir)
+     sendEmails(parseCSV(opts.labnum, curDir), opts.text, usr, server, opts.labnum, curDir)
      server.quit()
 
 def sendEmails(mapping, text, sender, server, labnum, curDir):
@@ -100,23 +90,11 @@ def connect(usr, pw, debug):
           print("Connected!")
           return server
 
-
 def sendmail(name, textbody, sender, receiver, server, num, curDir):
      # Open a plain text file for reading. For this example, assume that
      # the text file contains only ASCII characters
-
-     msg = MIMEMultipart("Hello, this is your grading email!")
-
-     # create the proper email
-     msg['Subject'] = 'Lab %s grade' % num
-     msg['From'] = sender
-     msg['To'] = receiver
-     msg.preamble = 'Grading email \n'
-
-     bodyfp = open("%s/%s" % (curDir,textbody), 'rb')
-     text = getBody(bodyfp, num)
-     msg.attach(text)
-     bodyfp.close()
+     msg = newMessage(sender, receiver, num)
+     addCannedText(msg, curDir, textbody, num)
 
      # get the files
      codeFile  = name + CODE_S
@@ -131,8 +109,31 @@ def sendmail(name, textbody, sender, receiver, server, num, curDir):
           raise BadPathException(gradePath)
 
      # add the attachments
-     # ASSUME GRADE IS .txt AND CODE IS .pdf
-     # attach the .txt
+     # attach the .txt rubric
+     attachRubric(gradePath, gradeFile, msg)
+     attachCommentedCode(codePath, codeFile, msg)
+
+     # send the message
+     server.sendmail(sender, [receiver], msg.as_string())
+
+## MESSAGE METHODS ##
+
+def newMessage(sender, receiver, num):
+     # create the proper email
+     msg = MIMEMultipart("")
+     msg['Subject'] = 'Lab %s grade' % num
+     msg['From'] = sender
+     msg['To'] = receiver
+     msg.preamble = 'Grading email \n'
+     return msg
+
+def addCannedText(msg, curDir, text, num):
+     bodyfp = open("%s/%s" % (curDir,text), 'rb')
+     text = getBody(bodyfp, num)
+     msg.attach(text)
+     bodyfp.close()
+
+def attachRubric(gradePath, gradeFile, msg):
      ctype_g, encoding_g = mimetypes.guess_type(gradePath)
      if ctype_g is None or encoding_g is not None:
           # No guess could be made, or the file is encoded (compressed), so
@@ -146,46 +147,44 @@ def sendmail(name, textbody, sender, receiver, server, num, curDir):
      grade.add_header('Content-Disposition', 'attachment', filename=gradeFile)
      msg.attach(grade)
 
+def attachCommentedCode(codePath, codeFile, msg):
      # attach the .pdf
-     if not debug:
-          ctype_c, encoding_c = mimetypes.guess_type(codePath)
-          if ctype_c is None or encoding_c is not None:
-               # No guess could be made, or the file is encoded (compressed), so
-              # use a generic bag-of-bits type.
-               ctype_c = 'application/pdf'
-          maintype_c, subtype_c = ctype_c.split('/', 1)
-          codefp = open(codePath, 'rb')
-          # Note: we should handle calculating the charset
-          code = MIMEBase(maintype_c, _subtype=subtype_c)
-          code.set_payload(codefp.read())
-          encoders.encode_base64(code)
-          codefp.close()
-          code.add_header('Content-Disposition', 'attachment', filename=codeFile)
-          msg.attach(code)
+     ctype_c, encoding_c = mimetypes.guess_type(codePath)
+     if ctype_c is None or encoding_c is not None:
+          # No guess could be made, or the file is encoded (compressed), so
+         # use a generic bag-of-bits type.
+          ctype_c = 'application/pdf'
+     maintype_c, subtype_c = ctype_c.split('/', 1)
+     codefp = open(codePath, 'rb')
+     # Note: we should handle calculating the charset
+     code = MIMEBase(maintype_c, _subtype=subtype_c)
+     code.set_payload(codefp.read())
+     encoders.encode_base64(code)
+     codefp.close()
+     code.add_header('Content-Disposition', 'attachment', filename=codeFile)
+     msg.attach(code)
 
-     # send the message
-     server.sendmail(sender, [receiver], msg.as_string())
+## CSV HELPERS ##
 
-
-def __parseCSV(num, curDir):
+def parseCSV(num, curDir):
      csvfd = open(curDir + '/Emails.csv', 'r')
      dictionary = {}
      with csvfd as emails:
           reader = csv.DictReader(emails)
           for row in reader:
-               dictionary[__nameToFile(row['Name'], num)] = row['Email']
+               dictionary[nameToFile(row['Name'], num)] = row['Email']
      return dictionary
 
-def __nameToFile(name, num):
-     first = __getFirst(name)
-     last = __getLast(name)
+def nameToFile(name, num):
+     first = getFirst(name)
+     last = getLast(name)
      return "Grade_Lab%s%s%s" % (num,last,first)
 
-def __getFirst(name):
+def getFirst(name):
      brkIdx = name.index(" ")
      return name[:brkIdx]
 
-def __getLast(name):
+def getLast(name):
      brkIdx = -name[::-1].index(" ")
      return name[brkIdx:]
 
