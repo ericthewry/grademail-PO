@@ -111,8 +111,8 @@ class Mailer:
      def sendmail(self, name, receiver):
           # Open a plain text file for reading. For this example, assume that
           # the text file contains only ASCII characters
-          msg = newMessage(self.sender, receiver, self.labnum)
-          addCannedText(msg, self.curDir, self.text, self.labnum)
+          message = Message(self.sender, receiver, self.labnum)
+          message.addCannedText(os.path.join(self.curDir, self.text), self.labnum)
 
           # get the files
           codeFile  = name + CODE_S
@@ -128,11 +128,11 @@ class Mailer:
 
           # add the attachments
           # attach the .txt rubric
-          attachRubric(gradePath, gradeFile, msg)
-          attachCommentedCode(codePath, codeFile, msg)
+          message.attachRubric(gradePath, gradeFile)
+          message.attachCommentedCode(codePath, codeFile)
 
           # send the message
-          self.server.sendmail(self.sender, [receiver], msg.as_string())
+          self.server.sendmail(self.sender, [receiver], message.toString())
 
      # create connection to the server
      # PARAMS:
@@ -156,90 +156,87 @@ class Mailer:
                print("Connected!")
                return server
 
+class Message():
+     def __init__(self, sender, receiver, num):
+          self.sender = sender
+          self.receiver = receiver
+          self.num = num
 
-## MESSAGE METHODS ##
+          self.msg = MIMEMultipart("")
+          self.msg['Subject'] = 'Lab %s grade' % num
+          self.msg['From'] = sender
+          self.msg['To'] = receiver
+          self.msg.preamble = 'Grading email \n'
 
-# initialize a new message
-# PARAMS:
-#     str sender   -- the email of the sender
-#     str receiver -- the email of the recipient
-# return MIMEMultipart, the base of the message to be sent
-def newMessage(sender, receiver, num):
-     # create the proper email
-     msg = MIMEMultipart("")
-     msg['Subject'] = 'Lab %s grade' % num
-     msg['From'] = sender
-     msg['To'] = receiver
-     msg.preamble = 'Grading email \n'
-     return msg
+     # append the canned text to the email object
+     # PARAMS:
+     #   str textDir       -- the path to the canned text
+     #   str num           -- the lab number
+     def addCannedText(self, textDir, num):
+          bodyfp = open(textDir, 'rb')
+          text = self.getBody(bodyfp, num)
+          self.msg.attach(text)
+          bodyfp.close()
 
-# append the canned text to the email object
-# PARAMS:
-#   MIMEMultipart msg -- the message
-#   str curDir        -- the path to the code directory
-#   str text          -- the path to the canned text
-#   str num           -- the lab number
-def addCannedText(msg, curDir, text, num):
-     bodyfp = open("%s/%s" % (curDir,text), 'rb')
-     text = getBody(bodyfp, num)
-     msg.attach(text)
-     bodyfp.close()
-
-# Read the canned text from the file
-# PARAMS
-#    BufferedReader fd -- input stream for canned response
-#    str num           -- the lab number
-def getBody(fd, num):
-     nextline = fd.readline()
-     content = "";
-     while nextline:
-          content = "%s%s" % (content, nextline.decode('utf-8'))
+     # Read the canned text from the file
+     # PARAMS
+     #    BufferedReader fd -- input stream for canned response
+     #    str num           -- the lab number
+     def getBody(self, fd, num):
           nextline = fd.readline()
-     # content = content.replace('XX', num)
-     text = MIMEText(content, _subtype='plain')
-     return text
+          content = "";
+          while nextline:
+               # content += nextline.decode('utf-8')
+               content = "%s%s" % (content, nextline.decode('utf-8'))
+               nextline = fd.readline()
+          # content = content.replace('XX', num)
+          text = MIMEText(content, _subtype='plain')
+          return text
 
-# Add the .txt rubric attachment to an input message
-# PARAMS:
-#     str gradePath     -- the path to the grade file
-#     str gradeFile     -- the name of the grade file
-#     MIMEMultipart msg -- the message to send
-def attachRubric(gradePath, gradeFile, msg):
-     ctype_g, encoding_g = mimetypes.guess_type(gradePath)
-     if ctype_g is None or encoding_g is not None:
-          # No guess could be made, or the file is encoded (compressed), so
-          # use a generic bag-of-bits type.
-          ctype_g = 'text/plain'
-     maintype_g, subtype_g = ctype_g.split('/', 1)
-     gradefp = open(gradePath)
-     # Note: we should handle calculating the charset
-     grade = MIMEText(gradefp.read(),_subtype=subtype_g)
-     gradefp.close()
-     grade.add_header('Content-Disposition', 'attachment', filename=gradeFile)
-     msg.attach(grade)
+     # Add the .txt rubric attachment to an input message
+     # PARAMS:
+     #     str gradePath     -- the path to the grade file
+     #     str gradeFile     -- the name of the grade file
+     #     MIMEMultipart msg -- the message to send
+     def attachRubric(self, gradePath, gradeFile):
+          ctype_g, encoding_g = mimetypes.guess_type(gradePath)
+          if ctype_g is None or encoding_g is not None:
+               # No guess could be made, or the file is encoded (compressed), so
+               # use a generic bag-of-bits type.
+               ctype_g = 'text/plain'
+          maintype_g, subtype_g = ctype_g.split('/', 1)
+          gradefp = open(gradePath)
+          # Note: we should handle calculating the charset
+          grade = MIMEText(gradefp.read(),_subtype=subtype_g)
+          gradefp.close()
+          grade.add_header('Content-Disposition', 'attachment', filename=gradeFile)
+          self.msg.attach(grade)
 
 
-# Add the .pdf commented code attachment to an input message
-# PARAMS:
-#     str codePath      -- the path to the code file
-#     str codeFile      -- the name of the code file
-#     MIMEMultipart msg -- the message to send
-def attachCommentedCode(codePath, codeFile, msg):
-     # try to guess the mimetype of the file
-     ctype_c, encoding_c = mimetypes.guess_type(codePath)
-     if ctype_c is None or encoding_c is not None:
-          # No guess could be made, or the file is encoded (compressed), so
-          # force pdf
-          ctype_c = 'application/pdf'
-     maintype_c, subtype_c = ctype_c.split('/', 1)
-     codefp = open(codePath, 'rb')
-     # Note: we should handle calculating the charset
-     code = MIMEBase(maintype_c, _subtype=subtype_c)
-     code.set_payload(codefp.read())
-     encoders.encode_base64(code)
-     codefp.close()
-     code.add_header('Content-Disposition', 'attachment', filename=codeFile)
-     msg.attach(code)
+     # Add the .pdf commented code attachment to an input message
+     # PARAMS:
+     #     str codePath      -- the path to the code file
+     #     str codeFile      -- the name of the code file
+     #     MIMEMultipart msg -- the message to send
+     def attachCommentedCode(self, codePath, codeFile):
+          # try to guess the mimetype of the file
+          ctype_c, encoding_c = mimetypes.guess_type(codePath)
+          if ctype_c is None or encoding_c is not None:
+               # No guess could be made, or the file is encoded (compressed), so
+               # force pdf
+               ctype_c = 'application/pdf'
+          maintype_c, subtype_c = ctype_c.split('/', 1)
+          codefp = open(codePath, 'rb')
+          # Note: we should handle calculating the charset
+          code = MIMEBase(maintype_c, _subtype=subtype_c)
+          code.set_payload(codefp.read())
+          encoders.encode_base64(code)
+          codefp.close()
+          code.add_header('Content-Disposition', 'attachment', filename=codeFile)
+          self.msg.attach(code)
+
+     def toString(self):
+          return self.msg.as_string()
 
 ## CSV HELPERS ##
 
