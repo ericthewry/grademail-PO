@@ -8,6 +8,7 @@ import time
 import mimetypes
 import getpass
 import platform
+import csv
 
 from optparse import OptionParser
 
@@ -20,13 +21,13 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-DEBUG = False
+debug = False
 
 CURRDIR = './Output'
 COMMASPACE = ', '
 
 # the prefix and suffix for the code files
-CODE_P = 'Code_'
+CODE_P = 'Grade_'
 CODE_S = '.pdf'
 
 # the prefix and suffix for the code files
@@ -42,7 +43,7 @@ Send the canned response emails
 
 Usage: ./grademail.py -e [email] -t [text] -l [labnumber]
 
-Note that options are not optional.
+Note that above options are not optional.
 """)
      parser.add_option('-e', '--email',
                       type='string', action='store',
@@ -57,42 +58,50 @@ Note that options are not optional.
                       help= """Enable if you want to debug.""")
 
      opts, args = parser.parse_args()
-
-     # python -m smtpd -n -c DebuggingServer localhost:1025
-     # enter the above line at terminal to run debugging server
-     DEBUG = (opts.DEBUG == True)
-     if DEBUG:
-          print("DEBUG ENABLED")
-          PORT = 1025
-          SERVER = 'localhost'
-     else:
-          print("NO DEBUG")
-          PORT = 587
-          SERVER = "smtp.gmail.com:587"
+     debug = opts.DEBUG
 
      # check for incomplete arguments
      if not opts.email or not opts.text or not opts.labnum:
           raise IncompleteArgumentsException();
 
-     me = usr = opts.email
-     you = "eric.campbell@pomona.edu"
+     usr = opts.email
      pw = getpass.getpass('Password for %s:' % usr)
 
      # create connection to the server
-     if DEBUG: # localhost
-          server = smtplib.SMTP(SERVER,PORT)
-     else: # log in to external mail server
+     print(debug)
+     server = connect(usr, pw, debug)
+     sendEmails(__parseCSV(opts.labnum), opts.text, usr, server, opts.labnum)
+     server.quit()
+
+def sendEmails(mapping, text, sender, server, labnum):
+     for filename in mapping:
+          rubric = "%s/%s%s" % (CURRDIR, filename, GRADE_S)
+          comments = "%s/%s%s" % (CURRDIR, filename, CODE_S)
+          if os.path.isfile(rubric) and os.path.isfile(comments):
+               print("Send mail to %s" % (filename))
+               sendmail(getName(filename), text, sender, mapping[filename], server, labnum)
+          else:
+               print("Missing .txt or .pdf file for %s.*" % (filename))
+
+# create connection to the server
+def connect(usr, pw, debug):
+     print(debug)
+     if debug: # localhost
+          print("DEBUG: Using Local Server")
+          PORT = 1025
+          SERVER = 'localhost'
+          return smtplib.SMTP(SERVER,PORT)
+     else: # log in to gmail smtp server
+          print("Connecting to mail server...")
+          PORT = 587
+          SERVER = "smtp.gmail.com:587"
           server = smtplib.SMTP(SERVER)
           server.ehlo()
           server.starttls()
           server.login(usr, pw)
+          print("Connected!")
+          return server
 
-     for filename in os.listdir(CURRDIR):
-          # if the file is a Code file
-          if isCodeFile(filename):
-               sendmail(getName(filename), opts.text, me, you, server, opts.labnum)
-
-     server.quit()
 
 def sendmail(name, textbody, sender, receiver, server, num):
      # Open a plain text file for reading. For this example, assume that
@@ -140,7 +149,7 @@ def sendmail(name, textbody, sender, receiver, server, num):
      msg.attach(grade)
 
      # attach the .pdf
-     if not DEBUG:
+     if not debug:
           ctype_c, encoding_c = mimetypes.guess_type(codePath)
           if ctype_c is None or encoding_c is not None:
                # No guess could be made, or the file is encoded (compressed), so
@@ -159,6 +168,28 @@ def sendmail(name, textbody, sender, receiver, server, num):
      # send the message
      server.sendmail(sender, [receiver], msg.as_string())
 
+
+def __parseCSV(num):
+     csvfd = open('./Emails.csv', 'r')
+     dictionary = {}
+     with csvfd as emails:
+          reader = csv.DictReader(emails)
+          for row in reader:
+               dictionary[__nameToFile(row['Name'], num)] = row['Email']
+     return dictionary
+
+def __nameToFile(name, num):
+     first = __getFirst(name)
+     last = __getLast(name)
+     return "Grade_Lab%s%s%s" % (num,last,first)
+
+def __getFirst(name):
+     brkIdx = name.index(" ")
+     return name[:brkIdx]
+
+def __getLast(name):
+     brkIdx = -name[::-1].index(" ")
+     return name[brkIdx:]
 
 # a function to open all the grade files
 def openGradeFiles():
