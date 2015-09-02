@@ -63,85 +63,99 @@ Note that above options are not optional.
      pw = getpass.getpass('Password for %s:' % usr)
 
      # create connection to the server
-     server = connect(usr, pw, debug)
-     sendEmails(parseCSV(opts.labnum, curDir), opts.text, usr, server, opts.labnum, curDir)
-     server.quit()
+     Mailer(opts.text, usr, pw, opts.labnum, curDir, debug).mail()
 
-# Send the collection of emails from the mapping
-# PARAMS:
-#    Dictionary mapping -- a dictionary.  KEYS are names, VALUES are Emails
-#    str text           -- the canned text file path
-#    str sender         -- the sending email
-#    SMTP server        -- the SMTP server being contacted
-#    str labnum         -- the labnumber
-#    str curDir         -- the path to the grade files
-def sendEmails(mapping, text, sender, server, labnum, curDir):
-     print(type(server))
-     for filename in mapping:
-          rubric = "%s/%s%s" % (curDir, filename, GRADE_S)
-          comments = "%s/%s%s" % (curDir, filename, CODE_S)
-          if os.path.isfile(rubric) and os.path.isfile(comments):
-               # print("Send mail to %s" % (filename))
-               sendmail(filename, text, sender, mapping[filename], server, labnum, curDir)
-          else:
-               print("Missing .txt or .pdf file for %s.*" % (filename))
 
-# create connection to the server
-# PARAMS:
-#     str usr    -- the email address of the user
-#     str pw     -- the users password
-#     bool debug -- true if --DEBUG flag triggered
-def connect(usr, pw, debug):
-     if debug: # localhost
-          print("DEBUG: Using Local Server")
-          PORT = 1025
-          SERVER = 'localhost'
-          return smtplib.SMTP(SERVER,PORT)
-     else: # log in to gmail smtp server
-          print("Connecting to mail server...")
-          PORT = 587
-          SERVER = "smtp.gmail.com:587"
-          server = smtplib.SMTP(SERVER)
-          server.ehlo()
-          server.starttls()
-          server.login(usr, pw)
-          print("Connected!")
-          return server
+class Mailer:
 
-# Send a single email
-# PARAMS:
-#    str name           -- the name of the file (without extension)
-#    str text           -- the canned text file path
-#    str sender         -- the sending email
-#    str receiver       -- the email of the recipient
-#    SMTP server        -- the SMTP server being contacted
-#    str num            -- the labnumber
-#    str curDir         -- the path to the grade files
-def sendmail(name, text, sender, receiver, server, num, curDir):
-     # Open a plain text file for reading. For this example, assume that
-     # the text file contains only ASCII characters
-     msg = newMessage(sender, receiver, num)
-     addCannedText(msg, curDir, text, num)
+     def __init__(self, text, sender, pw, labnum, curDir, debug):
+          self.server = self.connect(sender, pw, debug)
+          self.text   = text
+          self.sender = sender
+          # self.server = server
+          self.labnum = labnum
+          self.curDir = curDir
 
-     # get the files
-     codeFile  = name + CODE_S
-     gradeFile = name + GRADE_S
-     codePath  = os.path.join(curDir, codeFile)
-     gradePath = os.path.join(curDir, gradeFile)
+     def mail(self):
+          self.sendEmails(parseCSV(self.labnum, self.curDir))
+          self.server.quit()
 
-     # check for errors
-     if not os.path.isfile(codePath):
-          raise BadPathException(codePath)
-     if not os.path.isfile(gradePath):
-          raise BadPathException(gradePath)
 
-     # add the attachments
-     # attach the .txt rubric
-     attachRubric(gradePath, gradeFile, msg)
-     attachCommentedCode(codePath, codeFile, msg)
+     # Send the collection of emails from the mapping
+     # PARAMS:
+     #    Dictionary mapping -- a dictionary.  KEYS are names, VALUES are Emails
+     #    str text           -- the canned text file path
+     #    str sender         -- the sending email
+     #    SMTP server        -- the SMTP server being contacted
+     #    str labnum         -- the labnumber
+     #    str curDir         -- the path to the grade files
+     def sendEmails(self, mapping):
+          for filename in mapping:
+               rubric = "%s/%s%s" % (self.curDir, filename, GRADE_S)
+               comments = "%s/%s%s" % (self.curDir, filename, CODE_S)
+               if os.path.isfile(rubric) and os.path.isfile(comments):
+                    # print("Send mail to %s" % (filename))
+                    self.sendmail(filename, mapping[filename])
+               else:
+                    print("Missing .txt or .pdf file for %s.*" % (filename))
 
-     # send the message
-     server.sendmail(sender, [receiver], msg.as_string())
+     # Send a single email
+     # PARAMS:
+     #    str name           -- the name of the file (without extension)
+     #    str text           -- the canned text file path
+     #    str sender         -- the sending email
+     #    str receiver       -- the email of the recipient
+     #    SMTP server        -- the SMTP server being contacted
+     #    str num            -- the labnumber
+     #    str curDir         -- the path to the grade files
+     def sendmail(self, name, receiver):
+          # Open a plain text file for reading. For this example, assume that
+          # the text file contains only ASCII characters
+          msg = newMessage(self.sender, receiver, self.labnum)
+          addCannedText(msg, self.curDir, self.text, self.labnum)
+
+          # get the files
+          codeFile  = name + CODE_S
+          gradeFile = name + GRADE_S
+          codePath  = os.path.join(self.curDir, codeFile)
+          gradePath = os.path.join(self.curDir, gradeFile)
+
+          # check for errors
+          if not os.path.isfile(codePath):
+               raise BadPathException(codePath)
+          if not os.path.isfile(gradePath):
+               raise BadPathException(gradePath)
+
+          # add the attachments
+          # attach the .txt rubric
+          attachRubric(gradePath, gradeFile, msg)
+          attachCommentedCode(codePath, codeFile, msg)
+
+          # send the message
+          self.server.sendmail(self.sender, [receiver], msg.as_string())
+
+     # create connection to the server
+     # PARAMS:
+     #     str usr    -- the email address of the user
+     #     str pw     -- the users password
+     #     bool debug -- true if --DEBUG flag triggered
+     def connect(self, usr, pw, debug):
+          if debug: # localhost
+               print("DEBUG: Using Local Server")
+               PORT = 1025
+               SERVER = 'localhost'
+               return smtplib.SMTP(SERVER,PORT)
+          else: # log in to gmail smtp server
+               print("Connecting to mail server...")
+               PORT = 587
+               SERVER = "smtp.gmail.com:587"
+               server = smtplib.SMTP(SERVER)
+               server.ehlo()
+               server.starttls()
+               server.login(usr, pw)
+               print("Connected!")
+               return server
+
 
 ## MESSAGE METHODS ##
 
@@ -176,7 +190,6 @@ def addCannedText(msg, curDir, text, num):
 #    BufferedReader fd -- input stream for canned response
 #    str num           -- the lab number
 def getBody(fd, num):
-     print(type(fd))
      nextline = fd.readline()
      content = "";
      while nextline:
