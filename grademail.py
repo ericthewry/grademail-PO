@@ -25,11 +25,11 @@ debug = False
 
 COMMASPACE = ', '
 
-# the prefix and suffix for the code files
+# the prefix and suffix for the Commented Code
 CODE_P = 'Grade_'
 CODE_S = '.pdf'
 
-# the prefix and suffix for the code files
+# the prefix and suffix for the Rubric files
 GRADE_P = 'Grade_'
 GRADE_S = '.txt'
 
@@ -38,10 +38,7 @@ SLEEP_TIME = 0.1
 
 def main():
      parser = OptionParser("""\
-Send the canned response emails
-
-Usage: ./grademail.py -e [email] -t [text] -l [labnumber]
-
+./grademail.py -e [email] -t [text] -l [labnumber]
 Note that above options are not optional.
 """)
      parser.add_option('-e', '--email',
@@ -192,36 +189,6 @@ def __getLast(name):
      brkIdx = -name[::-1].index(" ")
      return name[brkIdx:]
 
-# a function to open all the grade files
-def openGradeFiles():
-     __openFiles(GRADE_P)
-
-# function to open all the Code files
-def openCodeFiles():
-     __openFiles(CODE_P)
-
-# private helper function to open up files with
-# a given prefix.
-def __openFiles(prefix):
-     for filename in os.listdir(curDir):
-          if re.match(prefix, filename) != None:
-               time.sleep(SLEEP_TIME)
-               command = ""
-               if platform.system() == "Windows":
-                    command = "start "
-               else:
-                    command = "open "
-               os.system("%s%s/%s " % (command,curDir,filename));
-
-# retrieve the name from the file name
-def getName (filename):
-     if filename[:4] == 'Code':
-          return filename[5:-4]
-     elif filename[:5] == 'Grade':
-          return filename[6:-4]
-     else:
-          raise ImproperNameException(filename)
-
 def getBody(fd, num):
      nextline = fd.readline()
      content = "";
@@ -231,12 +198,6 @@ def getBody(fd, num):
      # content = content.replace('XX', num)
      text = MIMEText(content, _subtype='plain')
      return text
-
-def isCodeFile(filename):
-     return re.match(CODE_P, filename) != None
-
-def isGradeFile(filename):
-     return re.match(GRADE_P, filename) != None
 
 # exception when naming convention has not been adhered to
 class ImproperNameException(Exception):
