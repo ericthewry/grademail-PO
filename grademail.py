@@ -23,14 +23,13 @@ from email.mime.application import MIMEApplication
 
 debug = False
 
-CURRDIR = './Output'
 COMMASPACE = ', '
 
-# the prefix and suffix for the code files
+# the prefix and suffix for the Commented Code
 CODE_P = 'Grade_'
 CODE_S = '.pdf'
 
-# the prefix and suffix for the code files
+# the prefix and suffix for the Rubric files
 GRADE_P = 'Grade_'
 GRADE_S = '.txt'
 
@@ -39,10 +38,7 @@ SLEEP_TIME = 0.1
 
 def main():
      parser = OptionParser("""\
-Send the canned response emails
-
-Usage: ./grademail.py -e [email] -t [text] -l [labnumber]
-
+./grademail.py -e [email] -t [text] -l [labnumber]
 Note that above options are not optional.
 """)
      parser.add_option('-e', '--email',
@@ -55,37 +51,39 @@ Note that above options are not optional.
                       type='string', action='store',
                       help="""The two-digit lab number""")
      parser.add_option('-D', '--DEBUG', action='store_true',
-                      help= """Enable if you want to debug.""")
+                      help="""Enable if you want to debug.""")
+     parser.add_option('-d', '--dir',
+                      type='string', action='store',
+                      help="""Specify Grading Dir, default is current dir""")
 
      opts, args = parser.parse_args()
-     debug = opts.DEBUG
 
      # check for incomplete arguments
      if not opts.email or not opts.text or not opts.labnum:
           raise IncompleteArgumentsException();
 
+     curDir = opts.dir if opts.dir != None else '.'
+     debug = opts.DEBUG
      usr = opts.email
      pw = getpass.getpass('Password for %s:' % usr)
 
      # create connection to the server
-     print(debug)
      server = connect(usr, pw, debug)
-     sendEmails(__parseCSV(opts.labnum), opts.text, usr, server, opts.labnum)
+     sendEmails(__parseCSV(opts.labnum, curDir), opts.text, usr, server, opts.labnum, curDir)
      server.quit()
 
-def sendEmails(mapping, text, sender, server, labnum):
+def sendEmails(mapping, text, sender, server, labnum, curDir):
      for filename in mapping:
-          rubric = "%s/%s%s" % (CURRDIR, filename, GRADE_S)
-          comments = "%s/%s%s" % (CURRDIR, filename, CODE_S)
+          rubric = "%s/%s%s" % (curDir, filename, GRADE_S)
+          comments = "%s/%s%s" % (curDir, filename, CODE_S)
           if os.path.isfile(rubric) and os.path.isfile(comments):
-               print("Send mail to %s" % (filename))
-               sendmail(getName(filename), text, sender, mapping[filename], server, labnum)
+               # print("Send mail to %s" % (filename))
+               sendmail(filename, text, sender, mapping[filename], server, labnum, curDir)
           else:
                print("Missing .txt or .pdf file for %s.*" % (filename))
 
 # create connection to the server
 def connect(usr, pw, debug):
-     print(debug)
      if debug: # localhost
           print("DEBUG: Using Local Server")
           PORT = 1025
@@ -103,7 +101,7 @@ def connect(usr, pw, debug):
           return server
 
 
-def sendmail(name, textbody, sender, receiver, server, num):
+def sendmail(name, textbody, sender, receiver, server, num, curDir):
      # Open a plain text file for reading. For this example, assume that
      # the text file contains only ASCII characters
 
@@ -115,16 +113,16 @@ def sendmail(name, textbody, sender, receiver, server, num):
      msg['To'] = receiver
      msg.preamble = 'Grading email \n'
 
-     bodyfp = open(textbody, 'rb')
+     bodyfp = open("%s/%s" % (curDir,textbody), 'rb')
      text = getBody(bodyfp, num)
      msg.attach(text)
      bodyfp.close()
 
      # get the files
-     codeFile  = findPair(CODE_P,  name)
-     gradeFile = findPair(GRADE_P, name)
-     codePath  = os.path.join(CURRDIR, codeFile)
-     gradePath = os.path.join(CURRDIR, gradeFile)
+     codeFile  = name + CODE_S
+     gradeFile = name + GRADE_S
+     codePath  = os.path.join(curDir, codeFile)
+     gradePath = os.path.join(curDir, gradeFile)
 
      # check for errors
      if not os.path.isfile(codePath):
@@ -169,8 +167,8 @@ def sendmail(name, textbody, sender, receiver, server, num):
      server.sendmail(sender, [receiver], msg.as_string())
 
 
-def __parseCSV(num):
-     csvfd = open('./Emails.csv', 'r')
+def __parseCSV(num, curDir):
+     csvfd = open(curDir + '/Emails.csv', 'r')
      dictionary = {}
      with csvfd as emails:
           reader = csv.DictReader(emails)
@@ -191,64 +189,15 @@ def __getLast(name):
      brkIdx = -name[::-1].index(" ")
      return name[brkIdx:]
 
-# a function to open all the grade files
-def openGradeFiles():
-     __openFiles(GRADE_P)
-
-# function to open all the Code files
-def openCodeFiles():
-     __openFiles(CODE_P)
-
-# private helper function to open up files with
-# a given prefix.
-def __openFiles(prefix):
-     for filename in os.listdir(CURRDIR):
-          if re.match(prefix, filename) != None:
-               time.sleep(SLEEP_TIME)
-               command = ""
-               if platform.system() == "Windows":
-                    command = "start "
-               else:
-                    command = "open "
-               os.system("%s%s/%s " % (command,CURRDIR,filename));
-
-
-# search file for code/grade pairs
-def findPair (prefix, name):
-     regex = prefix+name
-     pattern = re.compile(regex)
-     for filename in os.listdir(CURRDIR):
-          match = pattern.match(filename)
-          if match != None:
-               return filename
-
-# retrieve the name from the file name
-def getName (filename):
-     if filename[:4] == 'Code':
-          return filename[5:-4]
-     elif filename[:5] == 'Grade':
-          return filename[6:-4]
-     else:
-          raise ImproperNameException(filename)
-
 def getBody(fd, num):
-
      nextline = fd.readline()
      content = "";
      while nextline:
-          print(type(nextline.decode('utf-8')))
           content = "%s%s" % (content, nextline.decode('utf-8'))
           nextline = fd.readline()
-
      # content = content.replace('XX', num)
      text = MIMEText(content, _subtype='plain')
      return text
-
-def isCodeFile(filename):
-     return re.match(CODE_P, filename) != None
-
-def isGradeFile(filename):
-     return re.match(GRADE_P, filename) != None
 
 # exception when naming convention has not been adhered to
 class ImproperNameException(Exception):
